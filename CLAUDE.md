@@ -61,3 +61,50 @@ npm run build      # build both apps
 - Shared types/schemas imported as `import { ... } from '@invoice/shared'`
 - Both apps resolve `@invoice/shared` via tsconfig paths (no build step needed)
 - `apps/api/.env` must contain `DATABASE_URL` and `JWT_SECRET`
+
+## Prisma 7 — Critical Pattern
+
+```ts
+import { PrismaLibSql } from '@prisma/adapter-libsql'
+import { PrismaClient } from '@/app/generated/prisma/client'  // NOT '@prisma/client'
+
+const adapter = new PrismaLibSql({ url: process.env.DATABASE_URL! })
+const prisma = new PrismaClient({ adapter })
+```
+
+Generated client lives at `apps/api/app/generated/prisma/` — never import from `@prisma/client` directly.
+
+## Next.js 16 — Critical Patterns
+
+```ts
+// Async route params
+type Ctx = { params: Promise<{ id: string }> }
+export async function GET(req: NextRequest, ctx: Ctx) {
+  const { id } = await ctx.params
+}
+
+// Async cookies
+import { cookies } from 'next/headers'
+const cookieStore = await cookies()
+const token = cookieStore.get('auth_token')?.value
+```
+
+`useSearchParams()` requires `<Suspense>` boundary in client components.
+
+## Authentication Flow
+
+1. `POST /api/auth/login` → sets `auth_token` httpOnly cookie (8h, SameSite=lax)
+2. Browser sends cookie automatically on all `/api/*` requests (`credentials: 'same-origin'`)
+3. `apps/api/middleware.ts` verifies cookie on all `/api/*` except `/api/auth/*`
+4. Route handlers extract userId via `await cookies()` from `next/headers`
+
+Rate limiting: 5 req / 15 min per IP on login and register (in-memory sliding window).
+
+## Test User
+
+```
+email:    edward@test.com
+password: Test1234!
+```
+
+Has 3 invoices: FAC-022 (pagada), FAC-023 (enviada), FAC-024 (borrador).
