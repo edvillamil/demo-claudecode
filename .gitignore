@@ -17,6 +17,7 @@ out/
 
 # Prisma generated client (regenerated via npx prisma generate)
 invoice-app/app/generated/
+apps/api/app/generated/
 
 # Build outputs
 dist/
