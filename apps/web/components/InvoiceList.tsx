@@ -13,6 +13,7 @@ interface Props {
   total: number
   totalPages: number
   onRefresh?: () => void
+  onPageChange?: (page: number) => void
 }
 
 const STATUS_CONFIG: Record<string, { label: string; cls: string; dot: string }> = {
@@ -33,7 +34,7 @@ const STATUS_CONFIG: Record<string, { label: string; cls: string; dot: string }>
   },
 }
 
-export default function InvoiceList({ invoices, page, pageSize, total, totalPages, onRefresh }: Props) {
+export default function InvoiceList({ invoices, page, pageSize, total, totalPages, onRefresh, onPageChange }: Props) {
   const router = useRouter()
   const [deletingId, setDeletingId] = React.useState<string | null>(null)
 
@@ -174,34 +175,66 @@ export default function InvoiceList({ invoices, page, pageSize, total, totalPage
       {totalPages > 1 && (
         <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 dark:border-gray-700">
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            Mostrando {from}–{to} de {total} facturas
+            Mostrando {from}–{to} de {total} factura{total !== 1 ? 's' : ''}
           </p>
           <div className="flex items-center gap-1">
-            <Link
-              href={`/?page=${page - 1}`}
-              aria-disabled={page <= 1}
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-                page <= 1
-                  ? 'pointer-events-none border-gray-200 dark:border-gray-700 text-gray-300 dark:text-gray-600'
-                  : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-              }`}
-            >
-              ← Anterior
-            </Link>
-            <span className="px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400">
-              {page} / {totalPages}
-            </span>
-            <Link
-              href={`/?page=${page + 1}`}
-              aria-disabled={page >= totalPages}
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-                page >= totalPages
-                  ? 'pointer-events-none border-gray-200 dark:border-gray-700 text-gray-300 dark:text-gray-600'
-                  : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-              }`}
-            >
-              Siguiente →
-            </Link>
+            {onPageChange ? (
+              <>
+                <button
+                  onClick={() => onPageChange(page - 1)}
+                  disabled={page <= 1}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                    page <= 1
+                      ? 'border-gray-200 dark:border-gray-700 text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                      : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  ← Anterior
+                </button>
+                <span className="px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  {page} / {totalPages}
+                </span>
+                <button
+                  onClick={() => onPageChange(page + 1)}
+                  disabled={page >= totalPages}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                    page >= totalPages
+                      ? 'border-gray-200 dark:border-gray-700 text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                      : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  Siguiente →
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  href={`/?page=${page - 1}`}
+                  aria-disabled={page <= 1}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                    page <= 1
+                      ? 'pointer-events-none border-gray-200 dark:border-gray-700 text-gray-300 dark:text-gray-600'
+                      : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  ← Anterior
+                </Link>
+                <span className="px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  {page} / {totalPages}
+                </span>
+                <Link
+                  href={`/?page=${page + 1}`}
+                  aria-disabled={page >= totalPages}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                    page >= totalPages
+                      ? 'pointer-events-none border-gray-200 dark:border-gray-700 text-gray-300 dark:text-gray-600'
+                      : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  Siguiente →
+                </Link>
+              </>
+            )}
           </div>
         </div>
       )}

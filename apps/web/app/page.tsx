@@ -1,11 +1,12 @@
 'use client'
 
-import { Suspense, useEffect, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import InvoiceList from '@/components/InvoiceList'
+import FilterSidebar from '@/components/FilterSidebar'
 import { apiFetch, ApiError } from '@/hooks/useInvoiceFetch'
-import type { InvoiceWithItems, PaginatedResult } from '@invoice/shared'
+import { useFilterStore } from '@/lib/filterStore'
+import type { InvoiceWithItems } from '@invoice/shared'
 
 const PAGE_SIZE = 15
 
@@ -16,32 +17,26 @@ interface Stats {
 }
 
 function HomeContent() {
-  const searchParams = useSearchParams()
-  const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10))
-
-  const [invoices, setInvoices] = useState<InvoiceWithItems[]>([])
+  const [allInvoices, setAllInvoices] = useState<InvoiceWithItems[]>([])
   const [stats, setStats] = useState<Stats>({ total: 0, pagadas: 0, totalFacturado: 0 })
-  const [totalPages, setTotalPages] = useState(1)
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
   const [tick, setTick] = useState(0)
 
-  const refresh = () => setTick((t) => t + 1)
+  const { search, statuses, dateFrom, dateTo, amountMin, amountMax } = useFilterStore()
 
+  // Fetch all invoices + stats once (and on refresh)
   useEffect(() => {
     let cancelled = false
-
     const fetchData = async () => {
       setLoading(true)
       try {
-        const [result, statsData] = await Promise.all([
-          apiFetch<PaginatedResult<InvoiceWithItems>>(
-            `/api/invoices?page=${page}&pageSize=${PAGE_SIZE}`,
-          ),
+        const [invoices, statsData] = await Promise.all([
+          apiFetch<InvoiceWithItems[]>('/api/invoices'),
           apiFetch<Stats>('/api/invoices/stats'),
         ])
         if (!cancelled) {
-          setInvoices(result.data)
-          setTotalPages(result.totalPages)
+          setAllInvoices(invoices)
           setStats(statsData)
         }
       } catch (err) {
@@ -52,21 +47,61 @@ function HomeContent() {
         if (!cancelled) setLoading(false)
       }
     }
-
     fetchData()
     return () => { cancelled = true }
-  }, [page, tick])
+  }, [tick])
 
+  // Reset page to 1 when any filter changes
+  const filterKey = [search, ...statuses.sort(), dateFrom, dateTo, amountMin, amountMax].join('|')
+  const prevFilterKey = useRef(filterKey)
+  useEffect(() => {
+    if (prevFilterKey.current !== filterKey) {
+      setPage(1)
+      prevFilterKey.current = filterKey
+    }
+  }, [filterKey])
+
+  // Client-side filtering
+  const filtered = useMemo(() => {
+    return allInvoices.filter(inv => {
+      if (search) {
+        const q = search.toLowerCase()
+        const hit =
+          inv.number.toLowerCase().includes(q) ||
+          inv.clientName.toLowerCase().includes(q) ||
+          inv.clientEmail.toLowerCase().includes(q) ||
+          inv.issuerName.toLowerCase().includes(q) ||
+          (inv.notes ?? '').toLowerCase().includes(q)
+        if (!hit) return false
+      }
+      if (statuses.length > 0 && !statuses.includes(inv.status)) return false
+      if (dateFrom && new Date(inv.date) < new Date(dateFrom)) return false
+      if (dateTo && new Date(inv.date) > new Date(dateTo + 'T23:59:59')) return false
+      if (amountMin && inv.total < Number(amountMin)) return false
+      if (amountMax && inv.total > Number(amountMax)) return false
+      return true
+    })
+  }, [allInvoices, search, statuses, dateFrom, dateTo, amountMin, amountMax])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const pagedInvoices = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  const hasFilters = filterKey !== '||||'
   const { total, pagadas, totalFacturado } = stats
   const pendientes = total - pagadas
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Mis Facturas</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-            {loading ? 'Cargando...' : total === 0 ? 'Sin facturas aún' : `${total} factura${total !== 1 ? 's' : ''} en total`}
+            {loading
+              ? 'Cargando…'
+              : total === 0
+              ? 'Sin facturas aún'
+              : `${total} factura${total !== 1 ? 's' : ''} en total`}
           </p>
         </div>
         <Link
@@ -80,6 +115,7 @@ function HomeContent() {
         </Link>
       </div>
 
+      {/* Stats cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 border-l-4 border-l-slate-400 dark:border-l-slate-500 rounded-xl p-5 shadow-sm">
           <div className="flex items-start justify-between">
@@ -117,7 +153,7 @@ function HomeContent() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total facturado</p>
-              <p className="text-3xl font-bold text-blue-600 dark:text-blue-400 mt-1">${totalFacturado.toFixed(2)}</p>
+              <p className="text-3xl font-bold text-blue-600 dark:text-blue-400 mt-1">${totalFacturado.toLocaleString('es-MX')}</p>
             </div>
             <span className="w-10 h-10 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-center flex-shrink-0">
               <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -129,24 +165,40 @@ function HomeContent() {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Historial</h2>
-        </div>
-        {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      {/* Sidebar + table */}
+      <div className="flex items-start">
+        <FilterSidebar />
+
+        <div className="flex-1 min-w-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
+              Historial
+            </h2>
+            {hasFilters && !loading && (
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {filtered.length === 0
+                  ? 'Sin resultados'
+                  : `${filtered.length} resultado${filtered.length !== 1 ? 's' : ''}`}
+              </span>
+            )}
           </div>
-        ) : (
-          <InvoiceList
-            invoices={invoices}
-            page={page}
-            pageSize={PAGE_SIZE}
-            total={total}
-            totalPages={totalPages}
-            onRefresh={refresh}
-          />
-        )}
+
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : (
+            <InvoiceList
+              invoices={pagedInvoices}
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={filtered.length}
+              totalPages={totalPages}
+              onRefresh={() => setTick(t => t + 1)}
+              onPageChange={setPage}
+            />
+          )}
+        </div>
       </div>
     </div>
   )
@@ -154,7 +206,11 @@ function HomeContent() {
 
 export default function HomePage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center py-16"><div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" /></div>}>
+    <Suspense fallback={
+      <div className="flex items-center justify-center py-16">
+        <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
       <HomeContent />
     </Suspense>
   )
