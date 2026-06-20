@@ -24,7 +24,7 @@ const securityHeaders = [
 ]
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['@prisma/adapter-libsql', '@libsql/client', 'bcryptjs'],
+  serverExternalPackages: ['pg', 'bcryptjs'],
   async headers() {
     return [
       {

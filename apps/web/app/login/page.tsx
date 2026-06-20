@@ -104,7 +104,13 @@ export default function LoginPage() {
           </form>
         </div>
 
-        <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-5">
+        <div className="mt-4 rounded-lg border border-dashed border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-center">
+          <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-1">Credenciales de prueba</p>
+          <p className="text-xs text-amber-700 dark:text-amber-300 font-mono">edward@test.com</p>
+          <p className="text-xs text-amber-700 dark:text-amber-300 font-mono">Test1234!</p>
+        </div>
+
+        <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-4">
           ¿No tienes cuenta?{' '}
           <Link href="/register" className="text-blue-600 hover:text-blue-700 font-medium">
             Regístrate
